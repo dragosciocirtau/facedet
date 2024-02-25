@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
 import win32api, win32con
+from datetime import datetime, timedelta
+from time import sleep
 
 
 face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
@@ -11,6 +13,9 @@ detector_params.maxArea = 1500
 detector = cv2.SimpleBlobDetector_create(detector_params)
 display_width = win32api.GetSystemMetrics(0)
 display_height = win32api.GetSystemMetrics(1)
+corners = {1: "upper left", 2: "lower left", 3: "lower right", 4: "upper right"}
+display_corners = []
+used_eye = 0
 
 
 def detect_faces(img, cascade):
@@ -91,27 +96,66 @@ def eye_possition(img, keypoints):
         eye_y = eye_y / len(img[0]) * display_height
         print(eye_x, eye_y)
         
-        click(int(eye_x), int(eye_y))
+        move_cursor(int(eye_x), int(eye_y))
 
-def click(x,y):
+
+def detect_next_corner(corner_number):
+    print("keep your head still and facing the display and move your eyes towards the " + corners[corner_number + 1] + " corner of the screen for the next 3 seconds")
+    sleep(3)
+    
+
+def get_average_point_for_corner(current_corner_pos):
+    eye_x = 0
+    eye_y = 0
+    for point in current_corner_pos:
+        eye_x += point.pt[0]
+        eye_y += point.pt[1]
+    
+    display_corners.append((eye_x / len(current_corner_pos), eye_y / len(current_corner_pos)))
+
+
+def move_cursor(x,y):
     win32api.SetCursorPos((x,y))
 
 def main():
+    
     cap = cv2.VideoCapture(0)
     cv2.namedWindow('image')
+    end_time = datetime.now()
+    current_corner_pos = []
+    corners_detected = 0
+    
     while True:
         _, frame = cap.read()
         face_frame = detect_faces(frame, face_cascade)
         threshold = calculate_brightness(face_frame)
+        
+        if (corners_detected < 4 and end_time < datetime.now()):
+            
+            if len(current_corner_pos) != 0:
+                get_average_point_for_corner(current_corner_pos)
+                corners_detected = corners_detected + 1
+                
+            if corners_detected < 4: 
+                current_corner_pos = []
+                detect_next_corner(corners_detected)
+                end_time = datetime.now() + timedelta(seconds=3)
+        
+        if corners_detected == 4:
+            print(display_corners)
+            break
+            
         if face_frame is not None:
             eyes = detect_eyes(face_frame, eye_cascade)
             for eye in eyes:
                 if eye is not None:
                     eye = cut_eyebrows(eye)
                     keypoints = blob_process(eye, threshold, detector)
-                    eye_possition(eye, keypoints)
+                    if keypoints != ():
+                        current_corner_pos.append(keypoints[used_eye])
+                    #eye_possition(eye, keypoints)
                     cv2.drawKeypoints(eye, keypoints, eye, (0, 0, 255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-            eye_possition(eyes[0], keypoints)
+            #eye_possition(eyes[0], keypoints)
         cv2.imshow('image', frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
