@@ -1,4 +1,6 @@
 from asyncio.windows_events import NULL
+from shutil import move
+from turtle import window_width
 import cv2
 import numpy as np
 import win32api, win32con
@@ -6,8 +8,8 @@ from datetime import datetime, timedelta
 from time import sleep
 
 
-face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
-eye_cascade = cv2.CascadeClassifier('haarcascade_eye.xml')
+face_cascade = cv2.CascadeClassifier('./xml/haarcascade_frontalface_default.xml')
+eye_cascade = cv2.CascadeClassifier('./xml/haarcascade_eye.xml')
 detector_params = cv2.SimpleBlobDetector_Params()
 detector_params.filterByArea = True
 detector_params.maxArea = 1500
@@ -92,7 +94,7 @@ def eye_possition(img, keypoints):
             eye_x = keypoint.pt[0]
             eye_y = keypoint.pt[1]
         
-        new_point = invBilinear((eye_x, eye_y), display_corners)
+        new_point = inv_bilinear((eye_x, eye_y), display_corners)
         if (new_point == 0):
             pass
         else:
@@ -121,15 +123,15 @@ def cross(a, b):
     return a[0] * b[1] - a[1] * b[0]
 
 
-def invBilinear(p, corners):
+def inv_bilinear(p, corners):
     
     a = corners[0]
-    b = corners[1]
+    b = corners[3]
     c = corners[2]
-    d = corners[3]
+    d = corners[1]
 
     e = (b[0] - a[0], b[1] - a[1]) 
-    f = (d[0] - a[0], d[1] - d[1])
+    f = (d[0] - a[0], d[1] - a[1])
     g = (a[0] - b[0] + c[0] - d[0], a[1] - b[1] + c[1] - d[1])
     h = (p[0] - a[0], p[1] - a[1])
         
@@ -138,11 +140,13 @@ def invBilinear(p, corners):
     k0 = cross(h, e)
 
     if abs(k2) < 0.001:
-        return ((h[0] * k1 + f[0] * k0) / (e[0] * k1 - g[0] * k0), k0 / k1)
+        if h[0] * k1 + f[0] * k0 == 0:
+            return (0, -k0 / k1)
+        return ((h[0] * k1 + f[0] * k0) / (e[0] * k1 - g[0] * k0), -k0 / k1)
 
-    w = k1**2 - 4.0 * k0 * k2
+    w = k1**2 - 4 * k0 * k2
     
-    if(w < 0.0): 
+    if(w < 0): 
         return 0
     
     w = w**(1/2)
@@ -151,7 +155,7 @@ def invBilinear(p, corners):
     v = (-k1 - w) * ik2
     u = (h[0] - f[0] * v) / (e[0] + g[0] * v)
     
-    if u < 0.0 or u > 1.0 or v < 0.0 or v > 1.0:
+    if u < 0 or u > 1 or v < 0 or v > 1:
         v = (-k1 + w) * ik2
         u = (h[0] - f[0] * v) / (e[0] + g[0] * v)
             
@@ -159,7 +163,7 @@ def invBilinear(p, corners):
 
 
 def move_cursor(x,y):
-    win32api.SetCursorPos((x,y))
+    win32api.SetCursorPos((int(x * display_width), int(y * display_height)))
 
 
 def main():
@@ -211,8 +215,8 @@ def main():
 
 
 if __name__ == "__main__":
-    trapeze_corners = invBilinear((23.69148587120904, 16.24612520005968), [(34.359647647754564, 16.80238807523573), (36.071575756072995, 18.61669331550598), (26.642096061706543, 17.43467420578003), (23.69148587120904, 16.24612520005968)])
-    print(trapeze_corners)
+    trapeze_corners = inv_bilinear((23.69148587120904, 16.24612520005968), [(34.359647647754564, 16.80238807523573), (36.071575756072995, 18.61669331550598), (26.642096061706543, 17.43467420578003), (23.69148587120904, 16.24612520005968)])
+    #print(trapeze_corners)
     
     # main()
     #move_cursor(100, 0)
